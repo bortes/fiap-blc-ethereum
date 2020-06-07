@@ -23,16 +23,16 @@ contract('Marketplace', async (accounts) => {
 
         // valores esperados
         let expectedExecutor_1 = {from: accounts[0]};
-        let expectedNewAddress = accounts[0];
+        let expectedNewAddress = expectedExecutor_1.from;
 
         let result, event;
 
         // adiciona negociante
-        result = await marketplace.addNewTrader(expectedNewAddress, expectedExecutor_1);
+        result = await marketplace.addNewTrader(expectedExecutor_1);
         event = result.logs.find( log => log.event == EVENT_NEW_TRADER_EVENT );
 
         // verificacoes
-        assert.equal(event.args.trader, expectedNewAddress, 'nao foi possivel recuperar o negociante adicionado');
+        assert.equal(event.args.throwedBy, expectedNewAddress, 'nao foi possivel recuperar o negociante adicionado');
     });
 
     it('deve adicionar nova ordem', async() => {
@@ -40,8 +40,8 @@ contract('Marketplace', async (accounts) => {
         let marketplace = await Marketplace.new();
 
         // valores esperados
-        let expectedExecutor_1 = {from: accounts[0]};
-        let expectedBuyerAddress = accounts[1];
+        let expectedExecutor_1 = {from: accounts[1]};
+        let expectedBuyerAddress = expectedExecutor_1.from;
 
         let expectedExecutor_2 = {from: expectedBuyerAddress};
         let expectedOperation = ENUM_OPERATIONS.BUY;
@@ -51,7 +51,7 @@ contract('Marketplace', async (accounts) => {
         let result, event;
 
         // adiciona negociante
-        result = await marketplace.addNewTrader(expectedBuyerAddress, expectedExecutor_1);
+        result = await marketplace.addNewTrader(expectedExecutor_1);
 
         // adiciona ordem
         result = await marketplace.addNewOrder(expectedOperation, expectedCommodity, expectedAmount, expectedExecutor_2);
@@ -69,8 +69,8 @@ contract('Marketplace', async (accounts) => {
         let marketplace = await Marketplace.new();
 
         // valores esperados
-        let expectedExecutor_1 = {from: accounts[0]};
-        let expectedBuyerAddress = accounts[2];
+        let expectedExecutor_1 = {from: accounts[2]};
+        let expectedBuyerAddress = expectedExecutor_1.from;
 
         let expectedExecutor_2 = {from: expectedBuyerAddress};
         let expectedOperation = ENUM_OPERATIONS.BUY;
@@ -83,7 +83,7 @@ contract('Marketplace', async (accounts) => {
         let result, event;
 
         // adiciona negociante
-        result = await marketplace.addNewTrader(expectedBuyerAddress, expectedExecutor_1);
+        result = await marketplace.addNewTrader(expectedExecutor_1);
 
         // adiciona ordens
         result = await marketplace.addNewOrder(expectedOperation, expectedCommodity, expectedAmount, expectedExecutor_2);
@@ -102,29 +102,31 @@ contract('Marketplace', async (accounts) => {
         let marketplace = await Marketplace.new();
 
         // valores esperados
-        let expectedExecutor_1 = {from: accounts[0]};
-        let expectedBuyerAddress = accounts[3];
-        let expectedSellerAddress = accounts[4];
+        let expectedExecutor_1 = {from: accounts[3]};
+        let expectedBuyerAddress = expectedExecutor_1.from;
 
-        let expectedExecutor_2 = {from: expectedBuyerAddress};
+        let expectedExecutor_2 = {from: accounts[4]};
+        let expectedSellerAddress = expectedExecutor_2.from;
+
+        let expectedExecutor_3 = {from: expectedBuyerAddress};
         let expectedOperation = ENUM_OPERATIONS.BUY;
         let expectedCommodity = ENUM_COMMODITIES.CORN;
         let expectedAmount = 300;
 
-        let expectedExecutor_3 = {from: expectedSellerAddress, value: 1000};
+        let expectedExecutor_4 = {from: expectedSellerAddress, value: 1000};
         let expectedOrderIndex = 0;
 
         let result, event;
 
         // adiciona negociantes: comprador e vendedor
-        result = await marketplace.addNewTrader(expectedBuyerAddress, expectedExecutor_1);
-        result = await marketplace.addNewTrader(expectedSellerAddress, expectedExecutor_1);
+        result = await marketplace.addNewTrader(expectedExecutor_1);
+        result = await marketplace.addNewTrader(expectedExecutor_2);
 
         // adiciona ordem de compra
-        result = await marketplace.addNewOrder(expectedOperation, expectedCommodity, expectedAmount, expectedExecutor_2);
+        result = await marketplace.addNewOrder(expectedOperation, expectedCommodity, expectedAmount, expectedExecutor_3);
 
         // adiciona vendedor
-        result = await marketplace.addNewSeller(expectedOrderIndex, expectedExecutor_3);
+        result = await marketplace.executeOrder(expectedOrderIndex, expectedExecutor_4);
         event = result.logs.find( log => log.event == EVENT_NEW_SELL_EVENT );
 
         // verificacoes
@@ -139,29 +141,31 @@ contract('Marketplace', async (accounts) => {
         let marketplace = await Marketplace.new();
 
         // valores esperados
-        let expectedExecutor_1 = {from: accounts[0]};
-        let expectedBuyerAddress = accounts[4];
-        let expectedSellerAddress = accounts[5];
+        let expectedExecutor_1 = {from: accounts[4]};
+        let expectedBuyerAddress = expectedExecutor_1.from;
 
-        let expectedExecutor_2 = {from: expectedSellerAddress};
+        let expectedExecutor_2 = {from: accounts[5]};
+        let expectedSellerAddress = expectedExecutor_2.from;
+
+        let expectedExecutor_3 = {from: expectedSellerAddress};
         let expectedOperation = ENUM_OPERATIONS.SELL;
         let expectedCommodity = ENUM_COMMODITIES.SUGAR;
         let expectedAmount = 400;
 
-        let expectedExecutor_3 = {from: expectedBuyerAddress, value: 2000};
+        let expectedExecutor_4 = {from: expectedBuyerAddress, value: 2000};
         let expectedOrderIndex = 0;
 
         let result, event;
 
         // adiciona negociantes: comprador e vendedor
-        result = await marketplace.addNewTrader(expectedBuyerAddress, expectedExecutor_1);
-        result = await marketplace.addNewTrader(expectedSellerAddress, expectedExecutor_1);
+        result = await marketplace.addNewTrader(expectedExecutor_1);
+        result = await marketplace.addNewTrader(expectedExecutor_2);
 
         // adiciona ordem de venda
-        result = await marketplace.addNewOrder(expectedOperation, expectedCommodity, expectedAmount, expectedExecutor_2);
+        result = await marketplace.addNewOrder(expectedOperation, expectedCommodity, expectedAmount, expectedExecutor_3);
 
         // adiciona comprador
-        result = await marketplace.addNewBuyer(expectedOrderIndex, expectedExecutor_3);
+        result = await marketplace.executeOrder(expectedOrderIndex, expectedExecutor_4);
         event = result.logs.find( log => log.event == EVENT_NEW_BUY_EVENT );
 
         // verificacoes

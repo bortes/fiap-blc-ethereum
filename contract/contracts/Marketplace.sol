@@ -5,7 +5,7 @@ contract Marketplace {
     // ENUMERADORES / ESTRUTURAS
     //
     enum Operations {
-        BUY,  // compra de commodity
+        BUY, // compra de commodity
         SELL // venda de commodity
     }
 
@@ -21,6 +21,7 @@ contract Marketplace {
         Commodities commodity;
         Operations operation;
         uint256 amount;
+        bool executed;
     }
 
     struct OrderList {
@@ -35,11 +36,10 @@ contract Marketplace {
 
     /**
      * @dev evento disparado quando um novo negociante for registrado
-     * @param trader endereco do comerciante
      * @param throwedBy address que disparou o evento
      * @author bortes
      */
-    event NewTraderEvent(address indexed trader, address indexed throwedBy);
+    event NewTraderEvent(address indexed throwedBy);
 
 
     /**
@@ -87,12 +87,42 @@ contract Marketplace {
      * @param trader endereco do comerciante
      * @author bortes
      */
-    modifier exceptTrader(
+    modifier onlyNewTrader(
         address trader
     ) {
         // consistencias
         require(trader != address(0x0), "invalid trader address");
         require(!tradersOrders[trader].initialized, "address already registred as trader");
+
+        // prossegue com a analise dos modificadores
+        _;
+    }
+
+    /**
+     * @dev coonsiste operacao valida
+     * @param operation operacao desejada
+     * @author bortes
+     */
+    modifier onlyOperations(
+        Operations operation
+    ) {
+        // consistencias
+        require(operation == Operations.BUY || operation == Operations.SELL, "invalid operation");
+
+        // prossegue com a analise dos modificadores
+        _;
+    }
+
+    /**
+     * @dev coonsiste mercadoria valida
+     * @param commodity mercadoria desejada
+     * @author bortes
+     */
+    modifier onlyCommodities(
+        Commodities commodity
+    ) {
+        // consistencias
+        require(commodity == Commodities.SUGAR || commodity == Commodities.CORN || commodity == Commodities.SOY, "invalid commodity");
 
         // prossegue com a analise dos modificadores
         _;
@@ -123,48 +153,7 @@ contract Marketplace {
         uint256 index
     ) {
         // consistencias
-        require(orders.length > index, "invalid index");
-
-        Order memory order = orders[index];
-        require(order.seller != address(0x0) || order.buyer != address(0x0), "order not found");
-
-        // prossegue com a analise dos modificadores
-        _;
-    }
-
-    /**
-     * @dev coonsiste ordem de compra
-     * @param index indice da ordem de compra
-     * @author bortes
-     */
-    modifier onlyBuyOrders(
-        uint256 index
-    ) {
-        // consistencias
-        require(orders.length > index, "invalid index");
-
-        Order memory order = orders[index];
-        require(order.seller != address(0x0) || order.buyer != address(0x0), "order not found");
-        require(order.operation == Operations.BUY, "buy order not found");
-
-        // prossegue com a analise dos modificadores
-        _;
-    }
-
-    /**
-     * @dev coonsiste ordem de venda
-     * @param index indice da ordem de venda
-     * @author bortes
-     */
-    modifier onlySellOrders(
-        uint256 index
-    ) {
-        // consistencias
-        require(orders.length > index, "invalid index");
-
-        Order memory order = orders[index];
-        require(order.seller != address(0x0) || order.buyer != address(0x0), "order not found");
-        require(order.operation == Operations.SELL, "sell order not found");
+        require(orders.length > index, "order not found");
 
         // prossegue com a analise dos modificadores
         _;
@@ -202,11 +191,11 @@ contract Marketplace {
      * @param trader endereco do comerciante
      * @author bortes
      */
-    function addNewTrader(address trader) exceptTrader(trader) public {
-        traders.push(trader);
-        tradersOrders[trader].initialized = true;
+    function addNewTrader() onlyNewTrader(msg.sender) public {
+        traders.push(msg.sender);
+        tradersOrders[msg.sender].initialized = true;
 
-        emit NewTraderEvent(trader, msg.sender);
+        emit NewTraderEvent(msg.sender);
     }
 
     /*
@@ -216,13 +205,14 @@ contract Marketplace {
      * @param amount quantidade desejada
      * @author bortes
      */
-    function addNewOrder (Operations operation, Commodities commodity, uint256 amount) onlyTraders(msg.sender) public {
+    function addNewOrder (Operations operation, Commodities commodity, uint256 amount) onlyTraders(msg.sender) onlyOperations(operation) onlyCommodities(commodity) public {
         Order memory newOrder = Order({
             operation: operation,
             commodity: commodity,
             amount: amount,
             seller: address(0x0),
-            buyer: address(0x0)
+            buyer: address(0x0),
+            executed: false
         });
 
         if( operation == Operations.BUY ){
@@ -243,7 +233,7 @@ contract Marketplace {
      * @param commodity mercadoria das ordens procuradas
      * @author bortes
      */
-     function getAllOrdersByCommodity (Commodities commodity) onlyTraders(msg.sender) public view returns (uint256[] memory indexes) {
+     function getAllOrdersByCommodity (Commodities commodity) onlyTraders(msg.sender) onlyCommodities(commodity) public view returns (uint256[] memory indexes) {
          uint256 length = orders.length;
          uint256 count = 0;
 
@@ -264,37 +254,41 @@ contract Marketplace {
      * @param index indice da ordem
      * @author bortes
      */
-     function getOrderByIndex (uint256 index) onlyTraders(msg.sender) onlyOrders(index) view public returns (address, address, Commodities, Operations, uint256) {
+     function getOrderByIndex (uint256 index) onlyTraders(msg.sender) onlyOrders(index) view public returns (address, address, Commodities, Operations, uint256, bool) {
         Order memory order = orders[index];
 
-        return (order.seller, order.buyer, order.commodity, order.operation, order.amount);
-     }
-    /*
-     * @dev adiciona um novo vendedor para a orderm informada
-     * @param index indice da ordem de compra
-     * @author bortes
-     */
-     function addNewSeller(uint256 index) onlyTraders(msg.sender) onlyBuyOrders(index) payable public {
-        Order storage order = orders[index];
-
-        order.seller = msg.sender;
-        order.buyer.transfer(msg.value);
-
-        emit NewSellEvent(index, order.seller, order.buyer, order.commodity, order.amount, msg.sender);
+        return (order.seller, order.buyer, order.commodity, order.operation, order.amount, order.executed);
      }
 
     /*
-     * @dev adiciona um novo comprador para a orderm informada
+     * @dev executa a ordem informada
      * @param index indice da ordem de compra
      * @author bortes
      */
-     function addNewBuyer(uint256 index) onlyTraders(msg.sender) onlySellOrders(index) payable public {
+     function executeOrder(uint256 index) onlyTraders(msg.sender) onlyOrders(index) payable public {
         Order storage order = orders[index];
+        address payable sender;
 
-        order.buyer = msg.sender;
-        order.seller.transfer(msg.value);
+        require(!order.executed, "order already executed");
 
-        emit NewBuyEvent(index, order.seller, order.buyer, order.commodity, order.amount, msg.sender);
+        if( order.operation == Operations.BUY ){
+            order.executed = true;
+            order.seller = msg.sender;
+
+            sender = order.buyer;
+
+            emit NewSellEvent(index, order.seller, order.buyer, order.commodity, order.amount, msg.sender);
+        }else{
+            order.executed = true;
+            order.buyer = msg.sender;
+
+            sender = order.seller;
+
+            emit NewBuyEvent(index, order.seller, order.buyer, order.commodity, order.amount, msg.sender);
+        }
+
+        (bool success, ) = sender.call.value(msg.value)("");
+        require(success, "failed to transfer");
      }
 
     //
